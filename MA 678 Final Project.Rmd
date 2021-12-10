@@ -1,0 +1,300 @@
+---
+title: "MA 678 Final Project"
+Author: Kuangyou Chen
+output:
+  html_notebook: default
+  pdf_document: default
+---
+#https://www.kaggle.com/contactprad/bike-share-daily-data
+#import the day/hour csv file
+```{r}
+bikesharing_day<-read.csv("/Users/kychen/Downloads/Bike-Sharing-Dataset/day.csv")
+bikesharing_day
+bikesharing_hour<-read.csv("/Users/kychen/Downloads/Bike-Sharing-Dataset/hour.csv")
+```
+
+```{r}
+names(bikesharing_day)
+```
+#Attribute Information:
+
+- instant: record index
+- dteday : date
+- season : season (1:spring, 2:summer, 3:fall, 4:winter)
+- yr : year (0: 2011, 1:2012)
+- mnth : month ( 1 to 12)
+- hr : hour (0 to 23)
+- holiday : weather day is holiday or not (extracted from http://dchr.dc.gov/page/holiday-schedule)
+- weekday : day of the week
+- workingday : if day is neither weekend nor holiday is 1, otherwise is 0.
++ weathersit : 
+    - 1: Clear, Few clouds, Partly cloudy, Partly cloudy
+    - 2: Mist + Cloudy, Mist + Broken clouds, Mist + Few clouds, Mist
+    - 3: Light Snow, Light Rain + Thunderstorm + Scattered clouds, Light Rain + Scattered clouds
+    - 4: Heavy Rain + Ice Pallets + Thunderstorm + Mist, Snow + Fog
+- temp : Normalized temperature in Celsius. The values are divided to 41 (max)
+- atemp: Normalized feeling temperature in Celsius. The values are divided to 50 (max)
+- hum: Normalized humidity. The values are divided to 100 (max)
+- windspeed: Normalized wind speed. The values are divided to 67 (max)
+- casual: count of casual users
+- registered: count of registered users
+- cnt: count of total rental bikes including both casual and registered
+
+
+#Data Cleaning 
+
+```{r}
+#install.packages("tidyverse")
+library(tidyverse)
+is.null(bikesharing_day)     #check null values
+#duplicated(bikesharing_day)  #check duplicated variables
+```
+#There is no null or duplicated value in the dataset bikesharing_day.
+
+
+#Outlier Detection and removal
+```{r}
+boxplot(bikesharing_day$casual)
+boxplot(bikesharing_day$registered)
+boxplot(bikesharing_day$cnt)
+boxplot(bikesharing_day$temp)
+boxplot(bikesharing_day$atemp)
+boxplot(bikesharing_day$hum)
+```
+
+#It seems that there are outliers in the variable casual and hum
+
+
+```{r}
+boxplot(bikesharing_day$casual,plot=FALSE)$out
+```
+```{r}
+boxplot(bikesharing_day$hum,plot=FALSE)$out
+```
+
+#Remove outliers of hum and casual variables
+```{r}
+outliers<-boxplot(bikesharing_day$casual,plot=FALSE)$out
+bikesharing_day[which(bikesharing_day$casual%in% outliers),]
+bikesharing_day<-bikesharing_day[-which(bikesharing_day$casual %in% outliers),]
+
+outliers1<-boxplot(bikesharing_day$hum,plot=FALSE)$out
+bikesharing_day[which(bikesharing_day$hum%in% outliers1),]
+bikesharing_day1<-bikesharing_day[-which(bikesharing_day$hum %in% outliers1),]
+```
+
+#Feature Engineering
+```{r}
+bikesharing_day1$original_temp<-(bikesharing_day1$temp*41)
+bikesharing_day1$original_atemp<-(bikesharing_day1$atemp*50)
+bikesharing_day1$original_windspeed<-(bikesharing_day1$windspeed*67)
+bikesharing_day1$original_hum<-(bikesharing_day1$hum*100)
+```
+
++ weathersit : 
+    - 1: Clear, Few clouds, Partly cloudy, Partly cloudy
+    - 2: Mist + Cloudy, Mist + Broken clouds, Mist + Few clouds, Mist
+    - 3: Light Snow, Light Rain + Thunderstorm + Scattered clouds, Light Rain + Scattered clouds
+    - 4: Heavy Rain + Ice Pallets + Thunderstorm + Mist, Snow + Fog
+```{r}
+bikesharing_day1$weekday <- factor(bikesharing_day1$weekday, levels = c(0,1,2,3,4,5,6), labels =  c("Sun", "Mon", "Tue", "Wed", "Thr", "Fri", "Sat"))
+bikesharing_day1$season <- factor(bikesharing_day1$season, levels = c(1,2,3,4), labels =  c("Spring","Summer","Fall","winter"))
+bikesharing_day1$weathersit <- factor(bikesharing_day1$weathersit, levels = c(1,2,3,4), labels =  c("Clear","Mist","Light","Extreme"))
+```
+
+```{r}
+bikesharing_day1
+```
+
+
+
+#Explortary Data Analysis
+
+#Seasonal Pattern of temperature change
+
+```{r}
+library(dplyr)
+season_summary <- bikesharing_day1 %>%
+  group_by(season) %>%
+  summarise(temp.min = min(original_temp),temp.max = max(original_temp),temp.med = median(original_temp),temp.stdev = sd(original_temp),temp.mean = mean(original_temp),  count = n())
+season_summary
+```
+
+
+
+```{r}
+boxplot(original_temp ~ season,data = bikesharing_day1,xlab = "Season",ylab = "Temperature",main = "Temperature by Season Pattern",col = "grey")
+boxplot(cnt ~ season,data = bikesharing_day1,xlab = "Season",ylab = "Total Count",main = "Total Count by Season Pattern",col = "grey")
+
+```
+#From the summary analysis, the lowest extreme and average temperature are in the spring (2.42°C,12.11°C) while the highest extreme and average temperature are in the fall (35.32°C,28.97°C).The boxplot shows that the lowest temperatures are at spring season and followed by winter, while the highest temperatures at fall and followed by summer. Those outliers in the boxplot might be season shifts and extreme weather circumstances. 
+
+```{r}
+boxplot(cnt ~ weathersit,data = bikesharing_day1,xlab = "Weather Conditions",ylab = "Rental Counts",main = "Bike Rental Counts by different weather conditions",col = "pink")
+```
++ weathersit : 
+    - 1: Clear, Few clouds, Partly cloudy, Partly cloudy
+    - 2: Mist + Cloudy, Mist + Broken clouds, Mist + Few clouds, Mist
+    - 3: Light Snow, Light Rain + Thunderstorm + Scattered clouds, Light Rain + Scattered clouds
+    - 4: Heavy Rain + Ice Pallets + Thunderstorm + Mist, Snow + Fog
+
+#There are no type 4 conditions in our dataset. 
+#The boxplot demonstrates that the highest mean value of rentals have days with the 1st weather type (clear, partly cloudy etc.),while the lowest number of rents happened at the type 3 (light snow, light rain+thunderstorm+scattered clouds,light rain).
+
+
+#Analaysis of Variance
+```{r}
+summary(aov(cnt~season,data=bikesharing_day1))
+summary(aov(cnt~weathersit,data=bikesharing_day1))
+summary(aov(cnt~holiday,data=bikesharing_day1))
+```
+#The ANOVA test shows that the correlation among bike sharing counts and season,weather conditions and holiday are all signficant, because p-values are all very small. The signficant level is: season>weathersit>holiday.
+
+```{r}
+TukeyHSD(aov(cnt~season,data=bikesharing_day1))
+TukeyHSD(aov(cnt~weathersit,data=bikesharing_day1))
+```
+#According to the result of Tukey's Honest Significant Difference test, the most significant difference in total number of bike sharing counts are between Fall and Spring. While the least significant difference is between Winter and Summer. Additionally for weather conditions, the most signficant difference would be between light weather to clear, while the least significant difference is between mist and clear. 
+
+
+
+#Patterns of variables change 
+
+```{r}
+library(dplyr)
+mean.bymonth <- data.frame("mnth" = c(1:12),
+                          "mnth.name" = c("01-Jan", "02-Feb", "03-Mar", "04-Apr", "05-May", "06-June", "07-July", "08-Aug", "09-Sept", "10-Oct", "11-Nov", "12-Dec"), stringsAsFactors = FALSE)
+
+bikeday <- merge(x=bikesharing_day1, y= mean.bymonth, by = 'mnth')
+
+month_groups <- bikeday %>% group_by(mnth.name) %>% summarise(mean.temp = mean(original_temp), mean.hum = mean(original_hum), mean.windspeed=mean(original_windspeed),mean.rentals = mean(cnt))
+month_groups
+
+```
+
+```{r}
+par(mfrow=c(2,2))
+barplot(height = month_groups$mean.rentals,
+        names.arg = month_groups$mnth.name ,col = "orange", main = "Mean rentals" )
+
+barplot(height = month_groups$mean.windspeed,
+        names.arg = month_groups$mnth.name,col = "yellow", main = "Mean Windspeed (km/h)" )
+
+barplot(height = month_groups$mean.hum,
+        names.arg = month_groups$mnth.name,col = "skyblue", main = "Mean Humidity" )
+
+
+barplot(height = month_groups$mean.temp,
+        names.arg = month_groups$mnth.name,col = "pink", main = "Mean Temperature" )
+```
+#Data Modeling
+
+```{r}
+plot(x = 1, y = 1, xlab = "Temperature", ylab = "Bike Sharing Count", type = "n", main = "Correlation between temperature and bike sharing counts",
+xlim = c(0, 40), ylim = c(0, 7000))
+points(bikesharing_day1$original_temp,bikesharing_day1$casual,pch=16,col='red')
+points(bikesharing_day1$original_temp,bikesharing_day1$registered,pch=16,col='grey')
+
+legend("topleft",legend = c("casual","registered"),col = c("red","grey"),pch=c(16,16),bg="white")
+
+abline(lm(bikesharing_day1$registered~bikesharing_day1$original_temp))
+abline(lm(bikesharing_day1$casual~bikesharing_day1$original_temp))
+
+```
+```{r}
+summary(lm(bikesharing_day1$registered~bikesharing_day1$original_temp))
+summary(lm(bikesharing_day1$casual~bikesharing_day1$original_temp))
+```
+
+
+
+
+
+
+```{r}
+plot(x = 1, y = 1, xlab = "Temperature", ylab = "Bike Sharing Count", type = "n", main = "Correlation between temperature and bike sharing counts 2011/2012",
+xlim = c(0, 40), ylim = c(0, 7000))
+points(bikesharing_day1$original_temp[bikesharing_day1$yr==0],bikesharing_day1$cnt[bikesharing_day1$yr==0],pch=16,col='blue')
+points(bikesharing_day1$original_temp[bikesharing_day1$yr==1],bikesharing_day1$cnt[bikesharing_day1$yr==1],pch=16,col='brown')
+
+legend("topleft",legend = c("2011","2012"),col = c("blue","brown"),pch=c(16,16),bg="white")
+
+abline(lm(bikesharing_day1$cnt[bikesharing_day1$yr==0]~bikesharing_day1$original_temp[bikesharing_day1$yr==0]))
+abline(lm(bikesharing_day1$cnt[bikesharing_day1$yr==1]~bikesharing_day1$original_temp[bikesharing_day1$yr==1]))
+```
+
+```{r}
+summary(lm(bikesharing_day1$cnt[bikesharing_day1$yr==0]~bikesharing_day1$original_temp[bikesharing_day1$yr==0]))
+summary(lm(bikesharing_day1$cnt[bikesharing_day1$yr==1]~bikesharing_day1$original_temp[bikesharing_day1$yr==1]))
+```
+
+
+```{r}
+plot(x = 1, y = 1, xlab = "Temperature", ylab = "Bike Sharing Count", type = "n", main = "Temperature and rental counts(weather conditions)",
+xlim = c(0, 40), ylim = c(0, 7000))
+points(bikesharing_day1$original_temp[bikesharing_day1$weathersit=='Clear'],bikesharing_day1$cnt[bikesharing_day1$weathersit=='Clear'],pch=16,col='skyblue')
+points(bikesharing_day1$original_temp[bikesharing_day1$weathersit=='Mist'],bikesharing_day1$cnt[bikesharing_day1$weathersit=='Mist'],pch=16,col='green')
+points(bikesharing_day1$original_temp[bikesharing_day1$weathersit=='Light'],bikesharing_day1$cnt[bikesharing_day1$weathersit=='Light'],pch=16,col='pink')
+
+legend("topleft",legend = c("Clear","Mist",'Light'),col = c("skyblue","green","pink"),pch=c(16,16),bg="white")
+
+abline(lm(bikesharing_day1$cnt[bikesharing_day1$weathersit=='Clear']~bikesharing_day1$original_temp[bikesharing_day1$weathersit=='Clear']))
+abline(lm(bikesharing_day1$cnt[bikesharing_day1$weathersit=='Mist']~bikesharing_day1$original_temp[bikesharing_day1$weathersit=='Mist']))
+abline(lm(bikesharing_day1$cnt[bikesharing_day1$weathersit=='Light']~bikesharing_day1$original_temp[bikesharing_day1$weathersit=='Light']))
+```
+```{r}
+summary(lm(bikesharing_day1$cnt[bikesharing_day1$weathersit=='Clear']~bikesharing_day1$original_temp[bikesharing_day1$weathersit=='Clear']))
+
+summary(lm(bikesharing_day1$cnt[bikesharing_day1$weathersit=='Mist']~bikesharing_day1$original_temp[bikesharing_day1$weathersit=='Mist']))
+
+summary(lm(bikesharing_day1$cnt[bikesharing_day1$weathersit=='Light']~bikesharing_day1$original_temp[bikesharing_day1$weathersit=='Light']))
+
+```
+
+- instant: record index
+- dteday : date
+- season : season (1:spring, 2:summer, 3:fall, 4:winter)
+- yr : year (0: 2011, 1:2012)
+- mnth : month ( 1 to 12)
+- hr : hour (0 to 23)
+- holiday : weather day is holiday or not (extracted from http://dchr.dc.gov/page/holiday-schedule)
+- weekday : day of the week
+- workingday : if day is neither weekend nor holiday is 1, otherwise is 0.
++ weathersit : 
+    - 1: Clear, Few clouds, Partly cloudy, Partly cloudy
+    - 2: Mist + Cloudy, Mist + Broken clouds, Mist + Few clouds, Mist
+    - 3: Light Snow, Light Rain + Thunderstorm + Scattered clouds, Light Rain + Scattered clouds
+    - 4: Heavy Rain + Ice Pallets + Thunderstorm + Mist, Snow + Fog
+- temp : Normalized temperature in Celsius. The values are divided to 41 (max)
+- atemp: Normalized feeling temperature in Celsius. The values are divided to 50 (max)
+- hum: Normalized humidity. The values are divided to 100 (max)
+- windspeed: Normalized wind speed. The values are divided to 67 (max)
+- casual: count of casual users
+- registered: count of registered users
+- cnt: count of total rental bikes including both casual and registered
+
+
+```{r}
+model<-glm(log(cnt)~season+yr+weathersit+holiday+workingday+mnth+log(temp)+log(atemp)+log(hum)+log(windspeed),data=bikeday)
+summary(model)
+```
+
+```{r}
+layout(matrix(c(1,2,3,4),2,2))
+plot(model)
+```
+
+
+```{r warning=FALSE}
+library(caret)
+train_control <- trainControl(method="cv", number=200)
+model_log <- train(log(cnt)~season+yr+weathersit+holiday+workingday+mnth+log(temp)+log(atemp)+log(hum)+log(windspeed), data=bikeday, trControl=train_control,method="glm")
+model_log$resample
+
+```
+
+```{r}
+model_log$results
+```
+
+#The accuracy score is 88% when applying the K-Fold Cross Validation.
